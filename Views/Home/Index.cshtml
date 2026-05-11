@@ -1,0 +1,195 @@
+@model ElasticDemo.Models.SearchViewModel
+@{
+    ViewData["Title"] = "Tìm kiếm sản phẩm";
+}
+
+<div class="container py-4">
+
+    <h2 class="mb-1">
+        <span class="text-warning">&#9889;</span> ElasticSearch Demo
+    </h2>
+    <p class="text-muted mb-4">Tìm kiếm sản phẩm bằng Elasticsearch</p>
+
+    @if (ViewBag.Error != null)
+    {
+        <div class="alert alert-danger">@ViewBag.Error</div>
+    }
+
+    <div class="card border-primary mb-4">
+        <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+            <span>&#128269; Tìm kiếm sản phẩm</span>
+            <span id="statusResult" class="text-white-50 small fw-normal"></span>
+        </div>
+        <div class="card-body">
+            <form method="get" asp-action="Index">
+                <div class="input-group">
+                    <input type="text" class="form-control form-control-lg"
+                           name="query" value="@Model.Query"
+                           placeholder="Tên SP, thương hiệu, danh mục..." />
+                    <button class="btn btn-primary" type="submit">Tìm</button>
+                </div>
+                <div class="form-text mt-1">
+                    Ví dụ: <code>Apple Laptop</code>, <code>Samsung</code>, <code>Hà Nội</code>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    @* ── Kết quả tìm kiếm ── *@
+    @if (Model.HasSearched)
+    {
+        <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <span class="badge bg-primary fs-6">
+                    Tìm thấy @(Model.TotalCount.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("vi-VN"))) kết quả
+                    trong @(Model.ElapsedMs >= 1000
+                        ? (Model.ElapsedMs / 1000.0).ToString("N1", System.Globalization.CultureInfo.GetCultureInfo("vi-VN")) + " giây"
+                        : Model.ElapsedMs + " ms")
+                </span>
+                <span class="ms-2 text-muted">cho "<strong>@Model.Query</strong>"</span>
+            </div>
+            <span class="text-muted small">Trang @Model.Page / @Model.TotalPages</span>
+        </div>
+
+        @if (Model.Results.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered align-middle">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>#</th>
+                            <th>Tên sản phẩm</th>
+                            <th>Danh mục</th>
+                            <th>Thương hiệu</th>
+                            <th>Nhà cung cấp</th>
+                            <th class="text-end">Giá (VND)</th>
+                            <th class="text-center">Tồn kho</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ int rowNum = (Model.Page - 1) * Model.PageSize + 1; }
+                        @foreach (var item in Model.Results)
+                        {
+                            <tr>
+                                <td class="text-muted small">@rowNum</td>
+                                <td><strong>@item.ProductName</strong></td>
+                                <td><span class="badge bg-secondary">@item.CategoryName</span></td>
+                                <td>
+                                    @item.BrandName
+                                    <small class="text-muted d-block">@item.BrandCountry</small>
+                                </td>
+                                <td>
+                                    @item.SupplierName
+                                    <small class="text-muted d-block">&#128205; @item.SupplierCity</small>
+                                </td>
+                                <td class="text-end fw-bold text-success">@item.Price.ToString("N0")</td>
+                                <td class="text-center">
+                                    @if (item.Stock == 0)
+                                    {
+                                        <span class="badge bg-danger">Hết hàng</span>
+                                    }
+                                    else if (item.Stock < 10)
+                                    {
+                                        <span class="badge bg-warning text-dark">@item.Stock</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-success">@item.Stock</span>
+                                    }
+                                </td>
+                            </tr>
+                            rowNum++;
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.DisplayTotalPages > 1)
+            {
+                int delta      = 2;
+                int rangeStart = Math.Max(2, Model.Page - delta);
+                int rangeEnd   = Math.Min(Model.DisplayTotalPages - 1, Model.Page + delta);
+                <nav>
+                    <ul class="pagination justify-content-center flex-wrap">
+
+                        @* Prev *@
+                        <li class="page-item @(Model.Page <= 1 ? "disabled" : "")">
+                            <a class="page-link" href="@Url.Action("Index", new { query = Model.Query, page = Model.Page - 1 })">&laquo;</a>
+                        </li>
+
+                        @* Trang đầu *@
+                        <li class="page-item @(Model.Page == 1 ? "active" : "")">
+                            <a class="page-link" href="@Url.Action("Index", new { query = Model.Query, page = 1 })">1</a>
+                        </li>
+
+                        @* ... đầu *@
+                        @if (rangeStart > 2)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+
+                        @* Trang giữa *@
+                        @for (int p = rangeStart; p <= rangeEnd; p++)
+                        {
+                            <li class="page-item @(p == Model.Page ? "active" : "")">
+                                <a class="page-link" href="@Url.Action("Index", new { query = Model.Query, page = p })">@p</a>
+                            </li>
+                        }
+
+                        @* ... cuối *@
+                        @if (rangeEnd < Model.DisplayTotalPages - 1)
+                        {
+                            <li class="page-item disabled"><span class="page-link">…</span></li>
+                        }
+
+                        @* Trang cuối *@
+                        <li class="page-item @(Model.Page == Model.DisplayTotalPages ? "active" : "")">
+                            <a class="page-link" href="@Url.Action("Index", new { query = Model.Query, page = Model.DisplayTotalPages })">@Model.DisplayTotalPages</a>
+                        </li>
+
+                        @* Next *@
+                        <li class="page-item @(Model.Page >= Model.DisplayTotalPages ? "disabled" : "")">
+                            <a class="page-link" href="@Url.Action("Index", new { query = Model.Query, page = Model.Page + 1 })">&raquo;</a>
+                        </li>
+
+                    </ul>
+                </nav>
+                <p class="text-center text-muted small">
+                    Trang @Model.Page / @Model.DisplayTotalPages.ToString("N0")
+                </p>
+            }
+        }
+        else
+        {
+            <div class="alert alert-info">
+                Không tìm thấy kết quả cho "<strong>@Model.Query</strong>".
+            </div>
+        }
+    }
+    else
+    {
+        <div class="alert alert-light border text-center py-5">
+            <div class="fs-1 mb-2">&#128269;</div>
+            <p class="mb-0 text-muted">Nhập từ khóa vào ô tìm kiếm để bắt đầu.</p>
+        </div>
+    }
+</div>
+
+@section Scripts {
+<script>
+    const statusUrl = '@Url.Action("Status", "Home")';
+
+    async function loadDocCount() {
+        const el = document.getElementById('statusResult');
+        try {
+            const res  = await fetch(statusUrl);
+            const data = await res.json();
+            el.innerHTML = data.ok
+                ? `📊 ${Number(data.count).toLocaleString('vi-VN')} documents trong ES`
+                : '';
+        } catch { }
+    }
+
+    loadDocCount();
+</script>
+}

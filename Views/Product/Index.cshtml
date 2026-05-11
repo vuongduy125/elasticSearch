@@ -1,0 +1,165 @@
+@model List<ElasticDemo.Models.Product>
+@{
+    ViewData["Title"] = "Quản lý sản phẩm";
+    int page       = ViewBag.Page;
+    int totalPages = ViewBag.TotalPages;
+    string? search = ViewBag.Search;
+    var viVN = System.Globalization.CultureInfo.GetCultureInfo("vi-VN");
+    string FmtNum(long n) => n.ToString("N0", viVN);
+    string FmtMs(long ms) => ms >= 1000
+        ? (ms / 1000.0).ToString("N1", viVN) + " giây"
+        : ms + " ms";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="mb-0">&#128230; Quản lý sản phẩm <small class="text-muted fs-6">(SQL — source of truth)</small></h3>
+        <a asp-action="Create" class="btn btn-success">+ Thêm sản phẩm</a>
+    </div>
+
+    @if (TempData["Success"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show">
+            @TempData["Success"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    }
+
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <form method="get" class="d-flex gap-2">
+                <input type="text" name="search" value="@search"
+                       class="form-control" placeholder="Tìm trong SQL..." />
+                <button class="btn btn-outline-primary">Lọc</button>
+                @if (!string.IsNullOrWhiteSpace(search))
+                {
+                    <a asp-action="Index" class="btn btn-outline-secondary">Xóa lọc</a>
+                }
+            </form>
+        </div>
+    </div>
+
+    <div class="mb-3 d-flex align-items-center gap-2 flex-wrap">
+        @if (ViewBag.HasSearched == true)
+        {
+            <span class="badge bg-warning text-dark fs-6">
+                Tìm thấy @FmtNum((long)ViewBag.Total) kết quả trong @FmtMs((long)ViewBag.ElapsedMs)
+            </span>
+            <span class="text-muted small">cho "<strong>@ViewBag.Search</strong>" — SQL LIKE '%keyword%'</span>
+        }
+        else
+        {
+            <span class="badge bg-secondary fs-6">
+                Tổng @FmtNum((long)ViewBag.Total) sản phẩm — truy vấn @FmtMs((long)ViewBag.ElapsedMs)
+            </span>
+        }
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>ID</th>
+                    <th>Tên sản phẩm</th>
+                    <th>Danh mục</th>
+                    <th>Thương hiệu</th>
+                    <th class="text-end">Giá</th>
+                    <th class="text-center">Tồn</th>
+                    <th>Cập nhật</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in Model)
+                {
+                    <tr>
+                        <td class="text-muted small">@p.Id</td>
+                        <td><strong>@p.ProductName</strong></td>
+                        <td><span class="badge bg-secondary">@p.CategoryName</span></td>
+                        <td>@p.BrandName</td>
+                        <td class="text-end text-success fw-bold">@p.Price.ToString("N0")</td>
+                        <td class="text-center">@p.Stock</td>
+                        <td class="small text-muted">@p.UpdatedAt.ToString("HH:mm:ss dd/MM")</td>
+                        <td class="text-nowrap">
+                            <a asp-action="Edit" asp-route-id="@p.Id"
+                               class="btn btn-sm btn-outline-primary">Sửa</a>
+                            <form asp-action="Delete" asp-route-id="@p.Id"
+                                  method="post" class="d-inline"
+                                  onsubmit="return confirm('Xóa @p.ProductName?')">
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-sm btn-outline-danger">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                @if (!Model.Any())
+                {
+                    <tr><td colspan="8" class="text-center text-muted py-4">Chưa có sản phẩm nào</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (totalPages > 1)
+    {
+        int delta      = 2;
+        int rangeStart = Math.Max(2, page - delta);
+        int rangeEnd   = Math.Min(totalPages - 1, page + delta);
+        <nav>
+            <ul class="pagination justify-content-center flex-wrap">
+
+                @* Prev *@
+                <li class="page-item @(page <= 1 ? "disabled" : "")">
+                    <a class="page-link" asp-action="Index"
+                       asp-route-page="@(page - 1)" asp-route-search="@search">&laquo;</a>
+                </li>
+
+                @* Trang đầu *@
+                <li class="page-item @(page == 1 ? "active" : "")">
+                    <a class="page-link" asp-action="Index"
+                       asp-route-page="1" asp-route-search="@search">1</a>
+                </li>
+
+                @* Dấu ... đầu *@
+                @if (rangeStart > 2)
+                {
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                }
+
+                @* Các trang giữa *@
+                @for (int p = rangeStart; p <= rangeEnd; p++)
+                {
+                    <li class="page-item @(p == page ? "active" : "")">
+                        <a class="page-link" asp-action="Index"
+                           asp-route-page="@p" asp-route-search="@search">@p</a>
+                    </li>
+                }
+
+                @* Dấu ... cuối *@
+                @if (rangeEnd < totalPages - 1)
+                {
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                }
+
+                @* Trang cuối *@
+                @if (totalPages > 1)
+                {
+                    <li class="page-item @(page == totalPages ? "active" : "")">
+                        <a class="page-link" asp-action="Index"
+                           asp-route-page="@totalPages" asp-route-search="@search">@totalPages</a>
+                    </li>
+                }
+
+                @* Next *@
+                <li class="page-item @(page >= totalPages ? "disabled" : "")">
+                    <a class="page-link" asp-action="Index"
+                       asp-route-page="@(page + 1)" asp-route-search="@search">&raquo;</a>
+                </li>
+
+            </ul>
+        </nav>
+        <p class="text-center text-muted small">
+            Trang @(page) / @(totalPages.ToString("N0"))
+        </p>
+    }
+</div>

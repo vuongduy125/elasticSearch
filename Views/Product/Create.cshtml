@@ -1,0 +1,15 @@
+@model ElasticDemo.Models.Product
+@{ ViewData["Title"] = "Thêm sản phẩm"; }
+
+<div class="container py-4" style="max-width:640px">
+    <h3 class="mb-4">+ Thêm sản phẩm mới</h3>
+    <div class="alert alert-info small">
+        Sau khi thêm, <strong>OutboxEvent (ProductCreated)</strong> sẽ được tạo trong cùng transaction.
+        Worker sẽ sync lên ES trong ~5 giây.
+    </div>
+    <partial name="_ProductForm" model="Model" />
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}

@@ -1,0 +1,84 @@
+@model ElasticDemo.Models.Product
+
+@{
+    bool isEdit   = Model.Id > 0;
+    string action = isEdit ? "Edit" : "Create";
+}
+
+<form asp-action="@action" method="post">
+    @Html.AntiForgeryToken()
+    @if (isEdit) { <input type="hidden" asp-for="Id" /> }
+
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+
+    <div class="mb-3">
+        <label asp-for="ProductName" class="form-label fw-bold">Tên sản phẩm *</label>
+        <input asp-for="ProductName" class="form-control" placeholder="VD: iPhone 16 Pro Max" />
+        <span asp-validation-for="ProductName" class="text-danger small"></span>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6">
+            <label asp-for="Price" class="form-label fw-bold">Giá (VND) *</label>
+            <input asp-for="Price" class="form-control" type="number" min="0" />
+            <span asp-validation-for="Price" class="text-danger small"></span>
+        </div>
+        <div class="col-6">
+            <label asp-for="Stock" class="form-label fw-bold">Tồn kho</label>
+            <input asp-for="Stock" class="form-control" type="number" min="0" />
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6">
+            <label asp-for="CategoryName" class="form-label fw-bold">Danh mục</label>
+            <select asp-for="CategoryName" class="form-select">
+                <option value="">-- Chọn --</option>
+                @foreach (var c in new[]{"Điện thoại","Laptop","Tablet","Tai nghe","Đồng hồ","Máy ảnh","Phụ kiện"})
+                {
+                    <option value="@c">@c</option>
+                }
+            </select>
+        </div>
+        <div class="col-6">
+            <label asp-for="BrandName" class="form-label fw-bold">Thương hiệu</label>
+            <select asp-for="BrandName" class="form-select">
+                <option value="">-- Chọn --</option>
+                @foreach (var b in new[]{"Apple","Samsung","Xiaomi","Sony","Dell","Asus","Lenovo","Oppo","Vivo","Realme"})
+                {
+                    <option value="@b">@b</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-6">
+            <label asp-for="BrandCountry" class="form-label">Quốc gia thương hiệu</label>
+            <input asp-for="BrandCountry" class="form-control" placeholder="VD: Mỹ" />
+        </div>
+        <div class="col-6">
+            <label asp-for="SupplierCity" class="form-label">Thành phố NCC</label>
+            <select asp-for="SupplierCity" class="form-select">
+                <option value="">-- Chọn --</option>
+                @foreach (var c in new[]{"Hà Nội","TP.HCM","Đà Nẵng","Seoul","Tokyo","Thượng Hải"})
+                {
+                    <option value="@c">@c</option>
+                }
+            </select>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <label asp-for="SupplierName" class="form-label">Tên nhà cung cấp</label>
+        <input asp-for="SupplierName" class="form-control" placeholder="VD: Công ty TNHH ABC" />
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+            @(isEdit ? "💾 Lưu thay đổi" : "✅ Thêm sản phẩm")
+        </button>
+        <a asp-action="Index" class="btn btn-outline-secondary">Hủy</a>
+    </div>
+</form>
+

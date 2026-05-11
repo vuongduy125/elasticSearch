@@ -1,0 +1,15 @@
+@model ElasticDemo.Models.Product
+@{ ViewData["Title"] = "Sửa sản phẩm"; }
+
+<div class="container py-4" style="max-width:640px">
+    <h3 class="mb-4">&#9998; Sửa sản phẩm #@Model.Id</h3>
+    <div class="alert alert-warning small">
+        Sau khi lưu, <strong>OutboxEvent (ProductUpdated)</strong> sẽ được tạo.
+        Worker sẽ cập nhật ES trong ~5 giây.
+    </div>
+    <partial name="_ProductForm" model="Model" />
+</div>
+
+@section Scripts {
+    @{ await Html.RenderPartialAsync("_ValidationScriptsPartial"); }
+}
