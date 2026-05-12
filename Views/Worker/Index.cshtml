@@ -9,74 +9,81 @@
         <div class="col-md-5">
             <div class="card h-100" id="workerCard">
                 <div class="card-header fw-bold">&#128272; Worker Control</div>
-                <div class="card-body">
-                    <div class="mb-3 d-flex align-items-center gap-2">
-                        <span class="fs-5" id="workerIcon">&#9679;</span>
-                        <span id="workerStatus" class="fw-bold fs-5">Đang tải...</span>
-                    </div>
-                    <p class="text-muted small mb-3">
-                        Poll OutboxEvents mỗi <strong>5 giây</strong>.
-                        Tạm dừng để simulate out-of-sync.
-                    </p>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-warning" id="btnPause" onclick="workerAction('Pause')">⏸ Tạm dừng</button>
-                        <button class="btn btn-success" id="btnResume" onclick="workerAction('Resume')">▶ Chạy lại</button>
-                        <button class="btn btn-outline-danger btn-sm" id="btnRetry" onclick="retryFailed()">↩ Retry Failed</button>
-                    </div>
-
-                    <hr class="my-3"/>
+                <div class="card-body d-flex flex-column gap-3">
 
                     @if (TempData["Success"] != null)
                     {
-                        <div class="alert alert-success py-2 small">@TempData["Success"]</div>
+                        <div class="alert alert-success py-2 small mb-0">@TempData["Success"]</div>
                     }
 
-                    <div class="text-muted small mb-2">Seed dữ liệu mẫu vào SQL Server → OutboxEvents → ES</div>
-                    <div class="d-flex gap-2 align-items-center">
-                        @Html.AntiForgeryToken()
-                        <select id="seedCountSelect" class="form-select form-select-sm" style="width:180px">
-                            <option value="50">50 records</option>
-                            <option value="200" selected>200 records</option>
-                            <option value="500">500 records</option>
-                            <option value="1000">1.000 records</option>
-                            <option value="10000">10.000 records</option>
-                            <option value="100000">100.000 records</option>
-                            <option value="500000">500.000 records</option>
-                            <option value="1000000">1.000.000 records</option>
-                            <option value="5000000">5.000.000 records</option>
-                        </select>
-                        <button class="btn btn-outline-primary btn-sm" onclick="doSeed()">
-                            &#127807; Seed thêm
-                        </button>
+                    @* Vùng 1: Trạng thái worker *@
+                    <div class="border rounded p-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <span class="fs-5" id="workerIcon">&#9679;</span>
+                            <span id="workerStatus" class="fw-bold fs-5">Đang tải...</span>
+                        </div>
+                        <div class="text-muted small mb-2">
+                            Poll OutboxEvents mỗi <strong>5 giây</strong> — tạm dừng để simulate out-of-sync.
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-warning btn-sm" id="btnPause" onclick="workerAction('Pause')">⏸ Tạm dừng</button>
+                            <button class="btn btn-success btn-sm" id="btnResume" onclick="workerAction('Resume')">▶ Chạy lại</button>
+                        </div>
+                        <div class="mt-2 text-muted small" id="workerMeta"></div>
                     </div>
 
-                    <div id="seedProgress" class="mt-2" style="display:none">
-                        <div class="d-flex justify-content-between small text-muted mb-1">
-                            <span id="seedLabel">Đang seed...</span>
-                            <span id="seedCount">0 / 0</span>
+                    @* Vùng 2: Seed dữ liệu *@
+                    <div class="border rounded p-3">
+                        <div class="fw-semibold small mb-2">&#127807; Seed dữ liệu mẫu</div>
+                        <div class="text-muted small mb-2">SQL Server → OutboxEvents → ES</div>
+                        <div class="d-flex gap-2 align-items-center">
+                            @Html.AntiForgeryToken()
+                            <select id="seedCountSelect" class="form-select form-select-sm" style="width:180px">
+                                <option value="50">50 records</option>
+                                <option value="200" selected>200 records</option>
+                                <option value="500">500 records</option>
+                                <option value="1000">1.000 records</option>
+                                <option value="10000">10.000 records</option>
+                                <option value="100000">100.000 records</option>
+                                <option value="500000">500.000 records</option>
+                                <option value="1000000">1.000.000 records</option>
+                                <option value="5000000">5.000.000 records</option>
+                            </select>
+                            <button class="btn btn-outline-primary btn-sm" onclick="doSeed()">Seed thêm</button>
                         </div>
-                        <div class="progress" style="height:6px">
-                            <div id="seedBar" class="progress-bar progress-bar-striped progress-bar-animated"
-                                 style="width:0%"></div>
+                        <div id="seedProgress" class="mt-2" style="display:none">
+                            <div class="d-flex justify-content-between small text-muted mb-1">
+                                <span id="seedLabel">Đang seed...</span>
+                                <span id="seedCount">0 / 0</span>
+                            </div>
+                            <div class="progress" style="height:6px">
+                                <div id="seedBar" class="progress-bar progress-bar-striped progress-bar-animated" style="width:0%"></div>
+                            </div>
+                            <div id="seedDoneText" class="small text-success mt-1" style="display:none"></div>
+                            <div id="seedElapsed" class="small text-muted mt-1" style="display:none"></div>
                         </div>
-                        <div id="seedDoneText" class="small text-success mt-1" style="display:none"></div>
-                    <div id="seedElapsed" class="small text-muted mt-1" style="display:none"></div>
                     </div>
 
-                    <div class="mt-3 text-muted small" id="workerMeta"></div>
+                    @* Vùng 3: Bảo trì *@
+                    <div class="border rounded p-3">
+                        <div class="fw-semibold small mb-2">&#9881; Bảo trì</div>
+                        <div class="d-flex flex-column gap-2">
+                            <button class="btn btn-outline-danger btn-sm" id="btnRetry" onclick="retryFailed()">
+                                ↩ Retry Failed — sync lại event lỗi
+                            </button>
+                            <button class="btn btn-outline-warning btn-sm" onclick="doForceResync()">
+                                &#128257; Reindex ES từ SQL
+                            </button>
+                            <form asp-action="ClearAll" method="post">
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-danger btn-sm w-100"
+                                        onclick="return confirm('Xóa TOÀN BỘ data SQL + ES? Không thể hoàn tác!')">
+                                    &#128465; Xóa hết SQL + ES
+                                </button>
+                            </form>
+                        </div>
+                    </div>
 
-                    <button class="btn btn-outline-warning btn-sm w-100 mt-3"
-                            onclick="doForceResync()">
-                        &#128257; Reindex ES từ SQL
-                    </button>
-
-                    <form asp-action="ClearAll" method="post" class="mt-2">
-                        @Html.AntiForgeryToken()
-                        <button class="btn btn-danger btn-sm w-100"
-                                onclick="return confirm('Xóa TOÀN BỘ data SQL + ES? Không thể hoàn tác!')">
-                            &#128465; Xóa hết SQL + ES
-                        </button>
-                    </form>
                 </div>
             </div>
         </div>
@@ -205,13 +212,20 @@
     }
 
     async function workerAction(action) {
+        const running = action === 'Resume';
+        // Cập nhật UI ngay, không chờ server
+        document.getElementById('workerStatus').textContent = running ? 'Đang chạy' : 'Đã tạm dừng';
+        document.getElementById('workerIcon').style.color   = running ? '#198754' : '#dc3545';
+        document.getElementById('btnPause').disabled  = !running;
+        document.getElementById('btnResume').disabled = running;
+
         const url = action === 'Pause' ? pauseUrl : resumeUrl;
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `__RequestVerificationToken=${encodeURIComponent(csrfToken())}`
         });
-        await refresh(); // cập nhật UI ngay
+        await refresh(); // sync lại với server sau khi POST xong
     }
 
     const statusBadge = {
@@ -246,7 +260,7 @@
             document.getElementById('sqlCount').textContent  = Number(data.sqlCount).toLocaleString('vi-VN');
             document.getElementById('esCount').textContent   = Number(data.esCount).toLocaleString('vi-VN');
 
-            const diff = data.pendingCount + data.failedCount;
+            const diff = Math.abs(data.sqlCount - data.esCount);
             const diffEl = document.getElementById('diffCount');
             diffEl.textContent  = diff === 0 ? '✓ 0' : `⚠️ ${Number(diff).toLocaleString('vi-VN')}`;
             diffEl.className    = `fs-4 fw-bold ${diff === 0 ? 'text-success' : 'text-danger'}`;
@@ -277,8 +291,11 @@
         }
     }
 
-    refresh();
-    setInterval(refresh, 3000); // poll mỗi 3 giây
+    async function pollRefresh() {
+        await refresh();
+        setTimeout(pollRefresh, 3000);
+    }
+    pollRefresh();
 
     // Seed không reload page
     async function doSeed() {

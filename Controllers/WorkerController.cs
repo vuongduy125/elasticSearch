@@ -75,11 +75,11 @@ public class WorkerController(
             return Json(new { started = false, message = "Đang có tác vụ khác chạy." });
 
         var total = await db.Products.CountAsync();
+        seedProgress.Start(total); // Start trước khi spawn — tránh race condition với UI poll
 
         _ = Task.Run(async () =>
         {
             logger.LogInformation("ForceResync bắt đầu: {Total} records", total);
-            seedProgress.Start(total);
             try
             {
                 await elasticService.DeleteIndexAsync();
@@ -108,6 +108,9 @@ public class WorkerController(
                     seedProgress.Report(done);
                 }
 
+                await batchDb.Database.ExecuteSqlRawAsync(
+                    "UPDATE OutboxEvents SET Status='Processed', ProcessedAt=GETDATE() WHERE Status IN ('Failed','Pending')");
+
                 seedProgress.Complete();
                 logger.LogInformation("ForceResync hoàn thành: {Done} records", done);
             }
@@ -133,52 +136,62 @@ public class WorkerController(
         {
             using var scope = scopeFactory.CreateScope();
             var batchDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            const int batchSize = 5000;
+            int lastId = 0;
 
-            var failedEvents = await batchDb.OutboxEvents
-                .Where(e => e.Status == OutboxStatus.Failed)
-                .ToListAsync();
-
-            var upserts = failedEvents
-                .Where(e => e.EventType == OutboxEventType.Created || e.EventType == OutboxEventType.Updated)
-                .ToList();
-
-            var deletes = failedEvents
-                .Where(e => e.EventType == OutboxEventType.Deleted)
-                .ToList();
-
-            if (upserts.Count > 0)
+            while (true)
             {
-                try
-                {
-                    var docs = upserts
-                        .Select(e => System.Text.Json.JsonSerializer.Deserialize<ProductSearchDoc>(e.Payload!))
-                        .Where(d => d is not null)
-                        .Cast<ProductSearchDoc>()
-                        .ToList();
+                var batch = await batchDb.OutboxEvents
+                    .Where(e => e.Status == OutboxStatus.Failed && e.Id > lastId)
+                    .OrderBy(e => e.Id)
+                    .Take(batchSize)
+                    .ToListAsync();
 
-                    await elasticService.BulkIndexAsync(docs);
+                if (batch.Count == 0) break;
+                lastId = batch[^1].Id;
 
-                    var ids = string.Join(',', upserts.Select(e => e.Id));
-                    await batchDb.Database.ExecuteSqlRawAsync(
-                        $"UPDATE OutboxEvents SET Status='Processed', ErrorMessage=NULL, ProcessedAt=GETDATE() WHERE Id IN ({ids})");
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "RetryFailed upsert failed");
-                }
-            }
+                var upserts = batch
+                    .Where(e => e.EventType == OutboxEventType.Created || e.EventType == OutboxEventType.Updated)
+                    .ToList();
 
-            foreach (var evt in deletes)
-            {
-                try
+                var deletes = batch
+                    .Where(e => e.EventType == OutboxEventType.Deleted)
+                    .ToList();
+
+                if (upserts.Count > 0)
                 {
-                    await elasticService.DeleteDocAsync(evt.EntityId);
-                    await batchDb.Database.ExecuteSqlRawAsync(
-                        $"UPDATE OutboxEvents SET Status='Processed', ErrorMessage=NULL, ProcessedAt=GETDATE() WHERE Id = {evt.Id}");
+                    try
+                    {
+                        var docs = upserts
+                            .Select(e => System.Text.Json.JsonSerializer.Deserialize<ProductSearchDoc>(e.Payload!))
+                            .Where(d => d is not null)
+                            .Cast<ProductSearchDoc>()
+                            .ToList();
+
+                        await elasticService.BulkIndexAsync(docs);
+
+                        var ids = string.Join(',', upserts.Select(e => e.Id));
+                        await batchDb.Database.ExecuteSqlRawAsync(
+                            $"UPDATE OutboxEvents SET Status='Processed', ErrorMessage=NULL, ProcessedAt=GETDATE() WHERE Id IN ({ids})");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "RetryFailed upsert batch failed");
+                    }
                 }
-                catch (Exception ex)
+
+                foreach (var evt in deletes)
                 {
-                    logger.LogError(ex, "RetryFailed delete {Id} failed", evt.EntityId);
+                    try
+                    {
+                        await elasticService.DeleteDocAsync(evt.EntityId);
+                        await batchDb.Database.ExecuteSqlRawAsync(
+                            $"UPDATE OutboxEvents SET Status='Processed', ErrorMessage=NULL, ProcessedAt=GETDATE() WHERE Id = {evt.Id}");
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "RetryFailed delete {Id} failed", evt.EntityId);
+                    }
                 }
             }
         });
